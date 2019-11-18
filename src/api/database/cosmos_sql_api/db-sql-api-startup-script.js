@@ -1,5 +1,5 @@
 const client = require('./db');
-const { database, containers } = require('../config');
+const { database, containers } = require('../../config');
 
 /**
  * Create the database if it does not exist

@@ -1,7 +1,7 @@
 const _ = require("lodash");
-const client = require('../database/db');
-const { database, containers } = require('../config');
-const container = client.database(database.id).container(containers['usersContainer'].id);
+const client = require('../database/cosmos_sql_api/sql-api-db');
+const { cosmosSqlApi } = require('../config');
+const container = client.database(cosmosSqlApi.database.id).container(cosmosSqlApi.containers['usersContainer'].id);
 const schemas = require('../schemas');
 const { userSchema } = schemas;
 
@@ -10,8 +10,7 @@ class User {
     this.data = this.sanitize(data);
   }
 
-  sanitize(data) {
-    data = data || {};
+  sanitize(data = {}) {
     schema = userSchema;
     return _.pick(_.defaults(data, schema), _.keys(schema));
   }
