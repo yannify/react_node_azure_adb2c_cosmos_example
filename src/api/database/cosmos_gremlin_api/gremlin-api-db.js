@@ -3,7 +3,7 @@ const { cosmosGremlinApi } = require('../../config');
 
 const authenticator = new Gremlin.driver.auth.PlainTextSaslAuthenticator(`/dbs/${cosmosGremlinApi.database.id}/colls/${cosmosGremlinApi.containers['graphContainer'].id}`, cosmosGremlinApi.primaryKey);
 const client = new Gremlin.driver.Client(
-  config.endpoint, 
+  cosmosGremlinApi.endpoint, 
   { 
       authenticator,
       traversalsource : "g",

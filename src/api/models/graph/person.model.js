@@ -13,6 +13,9 @@ const Person = g.define('person', {
   },
   educated: {
     type: g.BOOLEAN
+  },
+  pk: {
+    type: g.STRING
   }
 });
 

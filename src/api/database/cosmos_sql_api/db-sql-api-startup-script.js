@@ -1,5 +1,5 @@
-const client = require('./db');
-const { database, containers } = require('../../config');
+const client = require('./sql-api-db');
+const { cosmosSqlApi } = require('../../config');
 
 /**
  * Create the database if it does not exist
@@ -46,10 +46,10 @@ async function readContainer(databaseId, containerId) {
 }
 
 async function initialize () {
-  await createDatabase(database.id);
-  await readDatabase(database.id);
-  await createContainer(database.id, containers['usersContainer'].id, containers['usersContainer'].partitionKey);
-  await readContainer(database.id, containers['usersContainer'].id);
+  await createDatabase(cosmosSqlApi.database.id);
+  await readDatabase(cosmosSqlApi.database.id);
+  await createContainer(cosmosSqlApi.database.id, cosmosSqlApi.containers['usersContainer'].id, cosmosSqlApi.containers['usersContainer'].partitionKey);
+  await readContainer(cosmosSqlApi.database.id, cosmosSqlApi.containers['usersContainer'].id);
 }
 
 module.exports = {
