@@ -1,7 +1,9 @@
-const User = require('./user.model');
-const Person = require('./graph/person.model');
+const Person = require('./vertices/person.model');
+const Skill = require('./vertices/skill.model');
+const Knows = require('./edges/knows.model');
 
 module.exports = {
-  User,
   Person,
+  Skill,
+  Knows,
 };

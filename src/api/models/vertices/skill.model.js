@@ -1,4 +1,4 @@
-const g = require('../../database/gremlin_orm/gremlin-orm');
+const g = require('../../database/gremlin-orm');
 
 const Skill = g.define('skill', {
   name: {

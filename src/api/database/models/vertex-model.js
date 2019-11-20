@@ -17,39 +17,27 @@ class VertexModel extends Model {
   * Returns single vertex model object
   * @param {object} props
   */
-  create(props, callback) {
-    if (!callback) throw new Error('Callback is required');
+  async create(props) {
     const checkSchemaResponse = this.checkSchema(this.schema, props, true);
     if (this.checkSchemaFailed(checkSchemaResponse)) {
-      callback(checkSchemaResponse);
-      return;
+      return checkSchemaResponse;  // TODO:  Create custom error and throw
     }
     let gremlinStr = `g.addV('${this.label}')`;
-    gremlinStr += `.property('${this.g.partition}', '${props[Object.keys(props)[0]]}')`;
+    gremlinStr += `.property('${this.g.partitionKey}', 'pk')`;  // TODO:  hardcoded partition
 
     gremlinStr += this.actionBuilder('property', props);
-    return this.executeQuery(gremlinStr, callback, true);
+    return await this.executeQuery(gremlinStr, true);
   }
 
   /**
   * Creates a new edge
-  * @param {string} edge
+  * @param {object} edge
   * @param {object} props
   * @param {object} vertex
   */
-  createEdge(edgeModel, properties, vertex, bothWays, callback) {
-    let both, cb;
-    if (typeof arguments[3] === 'function' || arguments.length < 4) {
-      both = false;
-      cb = arguments[3]
-    }
-    else {
-      both = arguments[3];
-      cb = arguments[4];
-    }
-    if (!cb) throw new Error('Callback is required');
+  async createEdge(edgeModel, properties, vertex, bothWays = false) {
     let label, props, model;
-    if (typeof edgeModel === 'string') {
+    if (typeof edgeModel === 'string') {  // TODO:  do we want to allow this?
       label = edgeModel;
       props = properties;
       model = new this.g.edgeModel(label, {}, this.g)
@@ -64,43 +52,38 @@ class VertexModel extends Model {
     let inGremlinStr = vertex.getGremlinStr();
 
     if (outGremlinStr === '') {
-      return cb({'error': 'Gremlin Query has not been initialised for out Vertex'});
+      throw new Error('Gremlin Query has not been initialised for out Vertex');
     }
     else if (inGremlinStr === '') {
-      return cb({'error': 'Gremlin Query has not been initialised for in Vertex'});
+      throw new Error('Gremlin Query has not been initialised for in Vertex');
     }
     if (typeof edgeModel !== 'string') {
       const checkSchemaResponse = this.checkSchema(edgeModel.schema, props, true);
       if (this.checkSchemaFailed(checkSchemaResponse)) {
-        cb(checkSchemaResponse);
-        return;
+        return checkSchemaResponse;
       }
     }
 
     // Remove 'g' from 'g.V()...'
     inGremlinStr = inGremlinStr.slice(1);
 
-    const [ a ] = this.getRandomVariable();
+    const [a] = this.getRandomVariable();
     let gremlinQuery = outGremlinStr + `.as('${a}')` + inGremlinStr;
     gremlinQuery += `.addE('${label}')${this.actionBuilder('property', props)}.from('${a}')`;
 
-    if (both === true) {
-      const [ b ] = this.getRandomVariable(1, [a]);
+    if (bothWays === true) {
+      const [b] = this.getRandomVariable(1, [a]);
       let extraGremlinQuery = `${vertex.getGremlinStr()}.as('${b}')${this.getGremlinStr().slice(1)}` +
-                      `.addE('${label}')${this.actionBuilder('property', props)}.from('${b}')`;
-      const intermediate = (err, results) => {
-        if (err) return cb(err);
-        let resultsSoFar = results.slice(0);
-        const concater = (err, results) => {
-          resultsSoFar = resultsSoFar.concat(results);
-          cb(err, resultsSoFar);
-        }
-        this.executeOrPass.call(model, extraGremlinQuery, concater);
-      }
-      return this.executeOrPass.call(model, gremlinQuery, intermediate);
+        `.addE('${label}')${this.actionBuilder('property', props)}.from('${b}')`;
+
+      var results = await this.executeOrPass.call(model, gremlinQuery, true);
+      let resultsSoFar = results.slice(0);
+      var extraResults = this.executeOrPass.call(model, extraGremlinQuery, true);
+      resultsSoFar = resultsSoFar.concat(results);
+      return results;
     }
     else {
-      return this.executeOrPass.call(model, gremlinQuery, cb);
+      return await this.executeOrPass.call(model, gremlinQuery, true);
     }
   }
 
@@ -108,20 +91,20 @@ class VertexModel extends Model {
   * Finds first vertex with matching properties
   * @param {object} properties
   */
-  find(properties, callback) {
+  async find(properties, execute) {
     const props = this.parseProps(properties);
     let gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
-    return this.executeOrPass(gremlinStr, callback, true);
+    return this.executeOrPass(gremlinStr, execute, true);
   }
 
   /**
   * Finds all vertexes with matching properties
   * @param {object} properties
   */
-  findAll(properties, callback) {
+  async findAll(properties, execute) {
     const props = this.parseProps(properties);
     let gremlinStr = `g.V(${this.getIdFromProps(props)}).hasLabel('${this.label}')` + this.actionBuilder('has', props);
-    return this.executeOrPass(gremlinStr, callback);
+    return this.execuexecuteOrPassteQuery(gremlinStr, execute);
   }
 
   /**
@@ -131,8 +114,8 @@ class VertexModel extends Model {
   * @param {number} depth
   */
 
-  findRelated(edgeModel, properties, depth, inV, callback) {
-    let label, props, inModel, inLabel, cb;
+  async findRelated(edgeModel, properties, depth, inV, execute) {
+    let label, props, inModel, inLabel;
     if (typeof edgeModel === 'string') {
       label = edgeModel;
       props = properties;
@@ -145,18 +128,15 @@ class VertexModel extends Model {
     if (arguments.length < 4 || typeof arguments[3] === 'function') {
       inModel = this;
       inLabel = this.label;
-      cb = arguments[3];
     }
     else {
       if (typeof arguments[3] === 'string') {
         inLabel = arguments[3];
         inModel = new this.g.vertexModel(inLabel, {}, this.g);
-        cb = arguments[4];
       }
       else {
         inModel = arguments[3];
         inLabel = inModel.label;
-        cb = arguments[4];
       }
     }
 
@@ -164,7 +144,7 @@ class VertexModel extends Model {
     for (let i = 0; i < depth; i += 1) {
       gremlinStr += `.outE().hasLabel('${label}')${this.actionBuilder('has', props)}.inV().hasLabel('${inLabel}')`;
     }
-    return this.executeOrPass.call(inModel, gremlinStr, cb);
+    return await this.executeOrPass.call(inModel, gremlinStr, execute);
   }
 
   /**
@@ -173,7 +153,7 @@ class VertexModel extends Model {
   * @param {object} props
   * @param {number} depth
   */
-  findEdge(edgeModel, properties, callback) {
+  async findEdge(edgeModel, properties, execute) {
     let label, props, model;
     if (typeof edgeModel === 'string') {
       label = edgeModel;
@@ -187,7 +167,7 @@ class VertexModel extends Model {
     }
     let gremlinStr = this.getGremlinStr();
     gremlinStr += `.bothE('${label}')${this.actionBuilder('has', props)}`;
-    return this.executeOrPass.call(model, gremlinStr, callback);
+    return await this.executeOrPass.call(model, gremlinStr, execute);
   }
 
   /**
@@ -195,7 +175,7 @@ class VertexModel extends Model {
   * @param {string} label
   * @param {object} properties
   */
-  findImplicit(edgeModel, properties, callback) {
+  async findImplicit(edgeModel, properties, execute) {
     let label, props, model;
     if (typeof edgeModel === 'string') {
       label = edgeModel;
@@ -208,12 +188,10 @@ class VertexModel extends Model {
     let gremlinStr = this.getGremlinStr();
     let originalAs = this.getRandomVariable()[0];
     gremlinStr += `.as('${originalAs}').outE('${label}')${this.actionBuilder('has', props)}` +
-                  `inV().inE('${label}')${this.actionBuilder('has', props)}.outV()` +
-                  `.where(neq('${originalAs}'))`;
-    return this.executeOrPass(gremlinStr, callback);
+      `inV().inE('${label}')${this.actionBuilder('has', props)}.outV()` +
+      `.where(neq('${originalAs}'))`;
+    return await this.executeOrPass(gremlinStr, execute);
   }
 }
-
-
 
 module.exports = VertexModel;

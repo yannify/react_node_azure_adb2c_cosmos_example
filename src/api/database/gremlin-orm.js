@@ -1,15 +1,17 @@
-const client = require('../cosmos_gremlin_api/gremlin-api-db');
+const db = require('./db');
 const VertexModel = require('./models/vertex-model');
 const EdgeModel = require('./models/edge-model');
 
 class Gorm {
-  constructor() {
+  constructor(partitionKey) {
     // Constants
     this.STRING = 'string';
     this.NUMBER = 'number';
     this.BOOLEAN = 'boolean';
     this.DATE = 'date';
-    this.client = client;
+
+    this.client = db;
+    this.partitionKey = partitionKey;
 
     this.definedVertices = {};
     this.definedEdges = {};
@@ -49,12 +51,9 @@ class Gorm {
   /**
   * performs a raw query on the gremlin-orm root and return raw data
   * @param {string} string Gremlin query as a string
-  * @param {function} callback Some callback function with (err, result) arguments.
   */
-  queryRaw(string, callback) {
-    this.client.execute(string, (err, result) => {
-      callback(err, result);
-    });
+  async queryRaw(string, callback) {
+    await this.client.submit(string);
   }
 
   /**
@@ -71,7 +70,7 @@ class Gorm {
       EDGE = new EdgeModel('null', {}, this.g);
     }
 
-    gremlinResponse.forEach((grem) => {
+    gremlinResponse._items.forEach((grem) => {
       let object;
 
       if (this.checkModels) {
@@ -92,10 +91,9 @@ class Gorm {
         if (grem.outVLabel) object.outVLabel = grem.outVLabel;
       }
 
-      let currentPartition = this.g.partition ? this.g.partition : '';
       if (grem.properties) {
         Object.keys(grem.properties).forEach((propKey) => {
-          if (propKey !== currentPartition) {
+          if (propKey !== this.g.partitionKey) {
             let property;
             if (grem.type === 'edge') {
               property = grem.properties[propKey];
@@ -144,4 +142,4 @@ class Gorm {
   }
 }
 
-module.exports = new Gorm();
+module.exports = new Gorm('pk'); 

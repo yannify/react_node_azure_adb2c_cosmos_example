@@ -10,49 +10,25 @@ class Model {
   }
 
   /**
-  * Perform a cypher query and parse the results
-  * @param {string} string
-  * @param {boolean} raw
-  */
-  query(string, raw, callback) {
-    let cb = callback;
-    let returnRawData = raw;
-    if (arguments.length < 3) {
-      cb = arguments[1];
-      returnRawData = false;
-    }
-    this.checkModels = true;
-    let gremlinStr = this.getGremlinStr();
-    gremlinStr += string;
-    if (returnRawData) {
-      this.checkModels = false;
-      return this.g.client.execute(gremlinStr, cb);
-    }
-    return this.executeOrPass(gremlinStr, cb);
-  }
-
-  /**
   * Updates specific props on an existing vertex or edge
   */
-  update(props, callback) {
-    if (!callback) throw new Error('Callback is required');
+  async update(props) {
     let gremlinStr = this.getGremlinStr();
     const schema = this.schema;
     const checkSchemaResponse = this.checkSchema(schema, props);
-    if (this.checkSchemaFailed(checkSchemaResponse)) return callback(checkSchemaResponse); // should it throw an error?
+    if (this.checkSchemaFailed(checkSchemaResponse)) return checkSchemaResponse; // should it throw an error?
     gremlinStr += this.actionBuilder('property', props);
-    return this.executeOrPass(gremlinStr, callback);
+    return await this.executeOrPass(gremlinStr);
   }
 
   /**
   * Deletes an existing vertex or edge
   * @param {string} id id of the vertex or edge to be deleted
   */
-  delete(callback) {
-    if (!callback) throw new Error('Callback is required');
+  async delete() {
     let gremlinStr = this.getGremlinStr();
     gremlinStr += '.drop()';
-    this.executeOrPass(gremlinStr, callback);
+    await this.executeOrPass(gremlinStr);
   }
 
   /**
@@ -60,27 +36,26 @@ class Model {
   * @param {string} propKey property to sort by.
   * @param {string} option 'ASC' or 'DESC'.
   */
-  order(propKey, option, callback) {
+  async order(propKey, option, execute) {
     if (!(option === 'DESC' || option === "ASC" )) {
-      callback({error: 'Order requires option to be "ASC" or "DESC"'});
-      return;
+      throw new Error('Order requires option to be "ASC" or "DESC"');
     }
     let originalGremlinStr = this.getGremlinStr();
     const order = originalGremlinStr.includes('order()') ? '' : '.order()';
     let gremlinStr = `${originalGremlinStr}${order}.by(`;
     const gremlinOption = option === 'DESC' ? 'decr' : 'incr';
     gremlinStr += `'${propKey}', ${gremlinOption})`;
-    return this.executeOrPass(gremlinStr, callback);
+    return await this.executeOrPass(gremlinStr, execute);
   }
 
   /**
   * Limits the number of results returned
   * @param {number} num number of results to be returned
   */
-  limit(num, callback) {
+  async limit(num, execute) {
     let gremlinStr = this.getGremlinStr();
     gremlinStr += `.limit(${parseInt(num)})`;
-    this.executeOrPass(gremlinStr, callback);
+    await this.executeOrPass(gremlinStr, execute);
   }
 
   /**
@@ -88,33 +63,28 @@ class Model {
   * @param {string} query query string to execute.
   * @param {object} singleObject
   */
-  executeQuery(query, callback, singleObject) {
-    this.g.client.execute(query, (err, result) => {
-      if (err) {
-        callback({'error': err});
-        return;
-      }
-      // Create nicer Object
-      let response = this.g.familiarizeAndPrototype.call(this, result);
-      if(singleObject && response.length > 0) {
-        callback(null, response[0]);
-        return;
-      }
-      callback(null, response);
-    });
-  }
+  async executeQuery(query, singleObject) {
+    var result = await this.g.client.submit(query);
 
-  /**
-  * Executes or passes a string of command
-  * @param {string} gremlinStr
-  * @param {object} singleObject
-  */
-  executeOrPass(gremlinStr, callback, singleObject) {
-    if (callback) return this.executeQuery(gremlinStr, callback, singleObject);
-    let response = Object.create(this);
-    response.gremlinStr = gremlinStr;
+    let response = this.g.familiarizeAndPrototype.call(this, result);
+    if(singleObject && response.length > 0) {
+      return response[0];
+    }
     return response;
   }
+
+    /**
+  * Executes or passes a string of command
+  * @param {string} gremlinStr
+  * @param {bool} execute
+  * @param {object} singleObject
+  */
+ executeOrPass(gremlinStr, execute, singleObject) {
+  if (execute) return this.executeQuery(gremlinStr, singleObject);
+  let response = Object.create(this);
+  response.gremlinStr = gremlinStr;
+  return response;
+}
 
   /**
   * Builds a command string to be executed or passed using props
@@ -160,7 +130,6 @@ class Model {
     arr.order = this.order;
     arr.limit = this.limit;
     arr.delete = this.delete;
-    arr.query = this.query;
     arr.actionBuilder = this.actionBuilder;
     arr.getGremlinStr = this.getGremlinStr;
     arr.getIdFromProps = this.getIdFromProps;
@@ -359,7 +328,7 @@ class Model {
   }
 
   /**
-   * returns true if response is an empty object and false if it contains any error message
+   * returns false if response is an empty object and true if it contains any error message
    * @param {object} response return value from checkSchema
   */
   checkSchemaFailed(response) {
@@ -367,7 +336,5 @@ class Model {
     return true;
   }
 }
-
-
 
 module.exports = Model;
