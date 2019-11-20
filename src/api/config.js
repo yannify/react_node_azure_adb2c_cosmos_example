@@ -1,6 +1,6 @@
 module.exports = {
-  endpoint: '',
-  primaryKey: '',
+  endpoint: process.env.COSMOS_ENDPOINT,
+  primaryKey: process.env.COSMOS_PRIMARY_KEY,
   database: {
     id: 'graph-db'
   },
@@ -9,5 +9,3 @@ module.exports = {
     partitionKey: { kind: 'Hash', paths: ['/pk'] }
   }
 };
-
-
